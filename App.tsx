@@ -166,7 +166,7 @@ const App: React.FC = () => {
     if (typeof window.gtag === 'function') {
       window.gtag('event', eventName, params);
     } else {
-      console.log('GA Event:', eventName, params);
+      console.log('GA Event (Local):', eventName, params);
     }
   };
 
@@ -323,12 +323,12 @@ const App: React.FC = () => {
     // GA Tracking for Game Select
     // Find readable title based on viewState
     let gameTitle = gameView;
-    if (gameView === 'game1') gameTitle = config.games.game1.title;
-    if (gameView === 'game2') gameTitle = config.games.game2.title;
-    if (gameView === 'game4') gameTitle = config.games.game4.title;
-    if (gameView === 'game5') gameTitle = config.games.game5.title;
-    if (gameView === 'game6') gameTitle = config.games.game6.title;
-    if (gameView === 'game8') gameTitle = config.games.game8.title;
+    // Map internal key to config title
+    // @ts-ignore
+    if (config.games[gameView]) {
+        // @ts-ignore
+        gameTitle = config.games[gameView].title;
+    }
 
     trackEvent('select_content', {
       content_type: 'game',
@@ -359,7 +359,7 @@ const App: React.FC = () => {
 
   const handleRankingTabChange = (tab: RankTab) => {
     setRankingTab(tab);
-    trackEvent('ranking_filter_click', { tab_name: tab });
+    trackEvent('view_item_list', { item_list_name: `ranking_${tab}` });
   };
 
   return (
