@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgroTraining - Plataforma de Treinamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Montserrat & Orbitron (Cyberpunk/Tech) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700;900&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+      :root {
+        /* Default to Dark Mode variables as per 'Agro Cyberpunk' requirement */
+        --bg-color: #050505;
+        --bg-secondary: #0F0F0F;
+        --text-color: #FFFFFF;
+        --text-secondary: #9CA3AF;
+        --accent-color: #FF6600; /* Laranja Neon */
+        --accent-glow: rgba(255, 102, 0, 0.5);
+        --cyan-accent: #00D4FF; /* Cyan Tech */
+        --cyan-glow: rgba(0, 212, 255, 0.5);
+        --card-bg: rgba(18, 18, 18, 0.8);
+        --card-border: rgba(255, 255, 255, 0.1);
+        --nav-bg: rgba(5, 5, 5, 0.85);
+        --grid-color: rgba(0, 212, 255, 0.03);
+      }
+
+      [data-theme="light"] {
+        /* Fallback Light Mode (Institutional) */
+        --bg-color: #F0F2F5;
+        --bg-secondary: #FFFFFF;
+        --text-color: #111827;
+        --text-secondary: #4B5563;
+        --accent-color: #FF6600;
+        --accent-glow: rgba(255, 102, 0, 0.2);
+        --cyan-accent: #007090;
+        --cyan-glow: rgba(0, 112, 144, 0.2);
+        --card-bg: #FFFFFF;
+        --card-border: rgba(0, 0, 0, 0.1);
+        --nav-bg: rgba(255, 255, 255, 0.95);
+        --grid-color: rgba(0, 0, 0, 0.05);
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: 'Montserrat', sans-serif;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        overflow-x: hidden;
+      }
+
+      h1, h2, h3, .font-tech {
+        font-family: 'Orbitron', sans-serif;
+      }
+
+      .font-mono-hud {
+        font-family: 'Share Tech Mono', monospace;
+      }
+
+      /* Tactical Grid Pattern */
+      .tactical-grid {
+        background-image: 
+          linear-gradient(var(--grid-color) 1px, transparent 1px), 
+          linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+        background-size: 50px 50px;
+        mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+      }
+
+      /* Neon Glow Utilities */
+      .glow-text-orange { text-shadow: 0 0 10px var(--accent-glow); }
+      .glow-text-cyan { text-shadow: 0 0 10px var(--cyan-glow); }
+      .glow-border-orange { box-shadow: 0 0 15px var(--accent-glow); }
+      
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: var(--bg-color); }
+      ::-webkit-scrollbar-thumb { background: var(--accent-color); border-radius: 3px; }
+
+      .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-enter { animation: fadeInUp 0.6s ease-out forwards; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

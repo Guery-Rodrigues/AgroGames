@@ -1,0 +1,5 @@
+{
+  "name": "Precision Spray Simulator",
+  "description": "A stealth learning game for agricultural training. Operate a precision sprayer, identify weeds, and eliminate them to protect the crop.",
+  "requestFramePermissions": []
+}
