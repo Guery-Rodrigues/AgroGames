@@ -16,6 +16,14 @@ type RankTab = 'general' | 'game1' | 'game2' | 'game4' | 'game5' | 'game6' | 'ga
 type AdminPage = 'profile' | 'whitelabel';
 type ConfigTab = 'branding' | 'hero' | 'games' | 'footer';
 
+// Extend Window interface for GA
+declare global {
+  interface Window {
+    dataLayer: any[];
+    gtag: (...args: any[]) => void;
+  }
+}
+
 interface LeaderboardItem {
   rank: number;
   name: string;
@@ -153,6 +161,15 @@ const App: React.FC = () => {
   // Configurações visuais
   const [config, setConfig] = useState<WhiteLabelConfig>(DEFAULT_CONFIG);
 
+  // --- GOOGLE ANALYTICS HELPER ---
+  const trackEvent = (eventName: string, params?: Record<string, any>) => {
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', eventName, params);
+    } else {
+      console.log('GA Event:', eventName, params);
+    }
+  };
+
   // --- EFFECT: LOAD CONFIG FROM SUPABASE ---
   useEffect(() => {
     const loadConfig = async () => {
@@ -235,8 +252,10 @@ const App: React.FC = () => {
       setLoginError('');
       setLoginUser('');
       setLoginPass('');
+      trackEvent('admin_login_success');
     } else {
       setLoginError('Credenciais Inválidas');
+      trackEvent('admin_login_fail');
     }
   };
 
@@ -255,6 +274,7 @@ const App: React.FC = () => {
       if (error) throw error;
       
       alert('Configurações salvas no banco de dados!');
+      trackEvent('admin_config_saved');
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar configurações.');
@@ -273,6 +293,7 @@ const App: React.FC = () => {
           .upsert({ id: 'global', config: DEFAULT_CONFIG, updated_at: new Date() });
         
         if (error) throw error;
+        trackEvent('admin_config_reset');
       } catch (error) {
         console.error("Erro ao resetar:", error);
       } finally {
@@ -297,10 +318,49 @@ const App: React.FC = () => {
 
   // --- HANDLERS: NAVIGATION ---
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  const handleStartGame = (gameView: ViewState) => { setView(gameView); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const handleBackToMenu = () => { setView('landing'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const goToBusiness = () => { setView('business'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const scrollToOperations = () => { document.getElementById('operations')?.scrollIntoView({ behavior: 'smooth' }); };
+  
+  const handleStartGame = (gameView: ViewState) => { 
+    // GA Tracking for Game Select
+    // Find readable title based on viewState
+    let gameTitle = gameView;
+    if (gameView === 'game1') gameTitle = config.games.game1.title;
+    if (gameView === 'game2') gameTitle = config.games.game2.title;
+    if (gameView === 'game4') gameTitle = config.games.game4.title;
+    if (gameView === 'game5') gameTitle = config.games.game5.title;
+    if (gameView === 'game6') gameTitle = config.games.game6.title;
+    if (gameView === 'game8') gameTitle = config.games.game8.title;
+
+    trackEvent('select_content', {
+      content_type: 'game',
+      item_id: gameView,
+      item_name: gameTitle
+    });
+
+    setView(gameView); 
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
+  const handleBackToMenu = () => { 
+    trackEvent('navigate_home');
+    setView('landing'); 
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
+  const goToBusiness = () => { 
+    trackEvent('business_click', { label: 'B2B Navigation' });
+    setView('business'); 
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
+  const scrollToOperations = () => { 
+    trackEvent('hero_cta_click', { label: 'Iniciar Operação' });
+    document.getElementById('operations')?.scrollIntoView({ behavior: 'smooth' }); 
+  };
+
+  const handleRankingTabChange = (tab: RankTab) => {
+    setRankingTab(tab);
+    trackEvent('ranking_filter_click', { tab_name: tab });
+  };
 
   return (
     <div className="min-h-screen flex flex-col font-['Montserrat'] overflow-x-hidden bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-300 selection:bg-[var(--accent-color)] selection:text-white">
@@ -715,7 +775,7 @@ const App: React.FC = () => {
                    </div>
                    <div className="flex bg-black p-1 rounded border border-[#333] flex-wrap gap-1">
                       {(['general', 'game1', 'game2', 'game4', 'game5', 'game6', 'game8'] as RankTab[]).map((tab) => (
-                        <button key={tab} onClick={() => setRankingTab(tab)} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-all font-tech ${rankingTab === tab ? 'bg-[var(--accent-color)] text-black' : 'text-gray-500 hover:text-white'}`}>
+                        <button key={tab} onClick={() => handleRankingTabChange(tab)} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-all font-tech ${rankingTab === tab ? 'bg-[var(--accent-color)] text-black' : 'text-gray-500 hover:text-white'}`}>
                           {tab === 'general' ? 'Geral' : tab === 'game1' ? 'Daninhas' : tab === 'game2' ? 'Mapas' : tab === 'game4' ? 'Torque' : tab === 'game5' ? 'Drone' : tab === 'game6' ? 'Monitor' : 'V. Rate'}
                         </button>
                       ))}
