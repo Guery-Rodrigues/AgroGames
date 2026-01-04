@@ -8,9 +8,13 @@ import VariableRateMasterCanvas from './components/VariableRateMasterCanvas';
 import { supabase } from './supabaseClient';
 
 // --- TYPES ---
-type ViewState = 'landing' | 'game1' | 'game2' | 'game4' | 'game5' | 'game6' | 'game8' | 'business';
+type ViewState = 'landing' | 'admin' | 'game1' | 'game2' | 'game4' | 'game5' | 'game6' | 'game8' | 'business';
 type Theme = 'dark' | 'light';
 type RankTab = 'general' | 'game1' | 'game2' | 'game4' | 'game5' | 'game6' | 'game8';
+
+// Admin Navigation Types
+type AdminPage = 'profile' | 'whitelabel';
+type ConfigTab = 'branding' | 'hero' | 'games' | 'footer';
 
 interface LeaderboardItem {
   rank: number;
@@ -20,21 +24,44 @@ interface LeaderboardItem {
   medal?: string;
 }
 
-// --- WHITE LABEL CONFIG TYPE ---
+// --- WHITE LABEL CONFIG TYPE (EXPANDED) ---
+interface GameConfig {
+  title: string;
+  tag: string;
+  description: string;
+  image: string; // URL
+  buttonText: string;
+}
+
 interface WhiteLabelConfig {
+  // 1. Branding & Colors
   appName: string;
   accentColor: string;
   bgColor: string;
   navColor: string;
+  
+  // 2. Hero Section
   heroImage: string;
-  gameImages: {
-    game1: string;
-    game2: string;
-    game4: string;
-    game5: string;
-    game6: string;
-    game8: string;
+  heroTitleLine1: string;
+  heroTitleLine2: string; // The gradient part
+  heroTitleLine3: string;
+  heroDescription: string;
+  heroButtonText: string;
+  heroTagline: string; // "Season 01..."
+
+  // 3. Games Config
+  games: {
+    game1: GameConfig;
+    game2: GameConfig;
+    game4: GameConfig;
+    game5: GameConfig;
+    game6: GameConfig;
+    game8: GameConfig;
   };
+
+  // 4. Footer
+  footerText: string;
+  footerLinkText: string;
 }
 
 const DEFAULT_CONFIG: WhiteLabelConfig = {
@@ -42,21 +69,72 @@ const DEFAULT_CONFIG: WhiteLabelConfig = {
   accentColor: "#FF6600",
   bgColor: "#050505",
   navColor: "rgba(5, 5, 5, 0.85)",
+  
   heroImage: "https://images.unsplash.com/photo-1527153857715-3908f2bae5e8?q=80&w=1600",
-  gameImages: {
-    game1: "", // Weed Control (Empty = Use CSS Art)
-    game2: "", // Memory Map
-    game4: "", // Torque Master
-    game5: "", // Drone Rush
-    game6: "", // Agro Panic
-    game8: ""  // Variable Rate
-  }
+  heroTitleLine1: "Domine a",
+  heroTitleLine2: "Tecnologia",
+  heroTitleLine3: "Do Campo",
+  heroDescription: "Teste seus reflexos e estratégia. A operação começa agora.",
+  heroButtonText: "[ Iniciar Operação ]",
+  heroTagline: "Season 01 • Active",
+
+  games: {
+    game1: {
+      title: "PULVERIZAÇÃO DE PRECISÃO",
+      tag: "⚡ Reflexo Rápido",
+      description: "Identifique e elimine invasoras em alta velocidade. Aplique o defensivo apenas onde é necessário e evite desperdícios.",
+      image: "",
+      buttonText: "Jogar Agora"
+    },
+    game2: {
+      title: "NAVEGAÇÃO TÁTICA",
+      tag: "🧠 Memória & Lógica",
+      description: "O piloto automático desligou. Memorize o traçado do talhão e execute a linha de plantio perfeita sem sobreposição.",
+      image: "",
+      buttonText: "Jogar Agora"
+    },
+    game4: {
+      title: "GESTÃO DE POTÊNCIA",
+      tag: "⚙️ Controle de Motor",
+      description: "Desafio de terreno. Mantenha o motor na faixa verde de RPM e controle o torque para vencer a inclinação sem patinar.",
+      image: "",
+      buttonText: "Acelerar"
+    },
+    game5: {
+      title: "VOO DE MONITORAMENTO",
+      tag: "🕹️ Pilotagem Remota",
+      description: "Decole o VANT. Desvie de árvores e obstáculos físicos para mapear os focos de infestação na lavoura.",
+      image: "",
+      buttonText: "Iniciar Voo"
+    },
+    game6: {
+      title: "TELEMETRIA DE FROTA",
+      tag: "📡 Gestão de Crise",
+      description: "Você é a Torre de Controle. Identifique alertas críticos nas máquinas via satélite e evite a parada da operação.",
+      image: "",
+      buttonText: "Monitorar"
+    },
+    game8: {
+      title: "TAXA VARIÁVEL INTELIGENTE",
+      tag: "🎯 Prescrição de Insumos",
+      description: "Analise o mapa de produtividade em tempo real. Ajuste a dosagem exata de adubo para cada mancha de solo.",
+      image: "",
+      buttonText: "Iniciar Aplicação"
+    }
+  },
+
+  footerText: "© 2024 AGRO ARCADE",
+  footerLinkText: "Área Comercial / Contrate para Eventos"
 };
 
 const App: React.FC = () => {
   // --- STATE: NAVIGATION & THEME ---
   const [view, setView] = useState<ViewState>('landing');
   const [theme, setTheme] = useState<Theme>('dark');
+  
+  // Admin Navigation State
+  const [adminPage, setAdminPage] = useState<AdminPage>('whitelabel');
+  const [configTab, setConfigTab] = useState<ConfigTab>('branding');
   
   // --- STATE: RANKING ---
   const [rankingTab, setRankingTab] = useState<RankTab>('general');
@@ -66,13 +144,13 @@ const App: React.FC = () => {
   // --- STATE: ADMIN & WHITE LABEL ---
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   
-  // Configurações visuais (Inicia com padrão, depois carrega do banco)
+  // Configurações visuais
   const [config, setConfig] = useState<WhiteLabelConfig>(DEFAULT_CONFIG);
 
   // --- EFFECT: LOAD CONFIG FROM SUPABASE ---
@@ -86,7 +164,8 @@ const App: React.FC = () => {
           .single();
 
         if (data && data.config) {
-          setConfig(data.config);
+          // Merge with default to ensure new fields exist if DB is old
+          setConfig(prev => ({ ...DEFAULT_CONFIG, ...data.config }));
         } else if (error && error.code !== 'PGRST116') {
           console.error("Erro ao carregar config:", error);
         }
@@ -152,7 +231,7 @@ const App: React.FC = () => {
     if (loginUser === 'admin' && loginPass === 'qazwsxedc') {
       setIsAdmin(true);
       setShowLoginModal(false);
-      setShowAdminPanel(true);
+      setView('admin'); // Go to Admin Dashboard
       setLoginError('');
       setLoginUser('');
       setLoginPass('');
@@ -163,7 +242,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setIsAdmin(false);
-    setShowAdminPanel(false);
+    setView('landing');
   };
 
   const saveConfig = async () => {
@@ -175,7 +254,6 @@ const App: React.FC = () => {
 
       if (error) throw error;
       
-      setShowAdminPanel(false);
       alert('Configurações salvas no banco de dados!');
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -203,10 +281,17 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImageChange = (key: keyof WhiteLabelConfig['gameImages'], value: string) => {
+  // Helper to update specific game config
+  const updateGameConfig = (gameKey: keyof WhiteLabelConfig['games'], field: keyof GameConfig, value: string) => {
     setConfig(prev => ({
       ...prev,
-      gameImages: { ...prev.gameImages, [key]: value }
+      games: {
+        ...prev.games,
+        [gameKey]: {
+          ...prev.games[gameKey],
+          [field]: value
+        }
+      }
     }));
   };
 
@@ -220,53 +305,57 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col font-['Montserrat'] overflow-x-hidden bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-300 selection:bg-[var(--accent-color)] selection:text-white">
       
-      {/* TACTICAL BACKGROUND GRID */}
-      <div className="fixed inset-0 z-0 pointer-events-none tactical-grid opacity-30"></div>
+      {/* TACTICAL BACKGROUND GRID (Only on public pages) */}
+      {view !== 'admin' && (
+        <div className="fixed inset-0 z-0 pointer-events-none tactical-grid opacity-30"></div>
+      )}
       
-      {/* NAVBAR */}
-      <nav className="fixed top-0 w-full z-50 px-6 py-4 flex justify-between items-center bg-[var(--nav-bg)] backdrop-blur-md border-b border-[var(--card-border)]">
-        <div className="flex items-center gap-2 cursor-pointer group" onClick={handleBackToMenu}>
-          <div className="w-8 h-8 bg-[var(--accent-color)] skew-x-[-12deg] flex items-center justify-center shadow-[0_0_10px_var(--accent-glow)]">
-             <span className="font-tech font-bold text-white skew-x-[12deg] text-lg">A</span>
+      {/* NAVBAR (Hidden on Admin) */}
+      {view !== 'admin' && (
+        <nav className="fixed top-0 w-full z-50 px-6 py-4 flex justify-between items-center bg-[var(--nav-bg)] backdrop-blur-md border-b border-[var(--card-border)]">
+          <div className="flex items-center gap-2 cursor-pointer group" onClick={handleBackToMenu}>
+            <div className="w-8 h-8 bg-[var(--accent-color)] skew-x-[-12deg] flex items-center justify-center shadow-[0_0_10px_var(--accent-glow)]">
+              <span className="font-tech font-bold text-white skew-x-[12deg] text-lg">A</span>
+            </div>
+            <span className="font-tech font-bold text-lg tracking-wider text-white uppercase">{config.appName}</span>
           </div>
-          <span className="font-tech font-bold text-lg tracking-wider text-white uppercase">{config.appName}</span>
-        </div>
-        
-        <div className="flex items-center gap-6">
-           {view === 'landing' && (
-             <button onClick={goToBusiness} className="hidden md:block text-[var(--text-secondary)] hover:text-white font-medium text-xs uppercase tracking-widest transition-colors">
-               Soluções para Empresas
-             </button>
-           )}
-           
-           {/* THEME TOGGLE */}
-           <button onClick={toggleTheme} className="hidden md:flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--card-border)] hover:border-[var(--accent-color)] text-[var(--text-color)] px-1 py-1 pr-3 rounded-full transition-all group">
-             <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-[var(--accent-color)] text-white' : 'bg-gray-200 text-gray-800'}`}>
-                {theme === 'dark' ? '☾' : '☀'}
-             </div>
-             <span className="text-[10px] font-bold uppercase tracking-wider">{theme === 'dark' ? 'Dark' : 'Light'}</span>
-           </button>
+          
+          <div className="flex items-center gap-6">
+            {view === 'landing' && (
+              <button onClick={goToBusiness} className="hidden md:block text-[var(--text-secondary)] hover:text-white font-medium text-xs uppercase tracking-widest transition-colors">
+                Soluções para Empresas
+              </button>
+            )}
+            
+            {/* THEME TOGGLE */}
+            <button onClick={toggleTheme} className="hidden md:flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--card-border)] hover:border-[var(--accent-color)] text-[var(--text-color)] px-1 py-1 pr-3 rounded-full transition-all group">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-[var(--accent-color)] text-white' : 'bg-gray-200 text-gray-800'}`}>
+                  {theme === 'dark' ? '☾' : '☀'}
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+            </button>
 
-           {/* LOGIN / ADMIN BUTTON */}
-           {isAdmin ? (
-             <button onClick={() => setShowAdminPanel(true)} className="text-[var(--accent-color)] font-bold text-xs uppercase tracking-widest hover:underline">
-                ADMIN PANEL
-             </button>
-           ) : (
-             <button onClick={() => setShowLoginModal(true)} className="text-gray-500 hover:text-white transition-colors" title="Acesso Admin">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-             </button>
-           )}
+            {/* LOGIN / ADMIN BUTTON */}
+            {isAdmin ? (
+              <button onClick={() => setView('admin')} className="text-[var(--accent-color)] font-bold text-xs uppercase tracking-widest hover:underline">
+                  ADMIN PANEL
+              </button>
+            ) : (
+              <button onClick={() => setShowLoginModal(true)} className="text-gray-500 hover:text-white transition-colors" title="Acesso Admin">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+              </button>
+            )}
 
-           {view.startsWith('game') && (
-             <button onClick={handleBackToMenu} className="text-[var(--accent-color)] font-bold text-xs border border-[var(--accent-color)] px-4 py-2 rounded hover:bg-[var(--accent-color)] hover:text-white transition-colors uppercase">
-               Sair
-             </button>
-           )}
-        </div>
-      </nav>
+            {view.startsWith('game') && (
+              <button onClick={handleBackToMenu} className="text-[var(--accent-color)] font-bold text-xs border border-[var(--accent-color)] px-4 py-2 rounded hover:bg-[var(--accent-color)] hover:text-white transition-colors uppercase">
+                Sair
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
 
       {/* --- MODAL: LOGIN --- */}
       {showLoginModal && (
@@ -282,96 +371,226 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* --- MODAL: ADMIN PANEL (WHITE LABEL) --- */}
-      {showAdminPanel && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="bg-[#111] border border-gray-700 w-full max-w-4xl rounded-lg shadow-2xl relative flex flex-col max-h-[90vh]">
-             {/* Header */}
-             <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0a0a]">
-                <h2 className="text-2xl font-tech text-[var(--accent-color)] uppercase">Configuração White Label</h2>
-                <div className="flex gap-4">
-                  <button onClick={handleLogout} className="text-red-500 text-xs font-bold uppercase hover:underline">Logout</button>
-                  <button onClick={() => setShowAdminPanel(false)} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+      {/* --- VIEW: ADMIN DASHBOARD (FULL SCREEN) --- */}
+      {view === 'admin' && (
+        <div className="flex h-screen w-full bg-[#050505] overflow-hidden text-white font-mono">
+           
+           {/* SIDEBAR (High Level) */}
+           <aside className="w-64 bg-[#0a0a0a] border-r border-[#222] flex flex-col">
+              <div className="p-6 border-b border-[#222]">
+                 <div className="text-[var(--accent-color)] font-tech text-xl uppercase tracking-widest mb-1">{config.appName}</div>
+                 <div className="text-gray-600 text-xs">Painel Administrativo</div>
+              </div>
+              
+              <nav className="flex-1 p-4 space-y-2">
+                 <button onClick={() => setAdminPage('profile')} className={`w-full text-left px-4 py-3 rounded text-sm uppercase tracking-wider transition-colors flex items-center gap-3 ${adminPage === 'profile' ? 'bg-[var(--accent-color)] text-black font-bold' : 'text-gray-400 hover:bg-[#111] hover:text-white'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    Perfil
+                 </button>
+                 <button onClick={() => setAdminPage('whitelabel')} className={`w-full text-left px-4 py-3 rounded text-sm uppercase tracking-wider transition-colors flex items-center gap-3 ${adminPage === 'whitelabel' ? 'bg-[var(--accent-color)] text-black font-bold' : 'text-gray-400 hover:bg-[#111] hover:text-white'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    White Label
+                 </button>
+              </nav>
+
+              <div className="p-6 border-t border-[#222]">
+                 <button onClick={() => setView('landing')} className="w-full border border-gray-600 text-gray-400 hover:text-white hover:border-white px-4 py-2 rounded text-xs uppercase tracking-widest mb-2">
+                    Voltar ao App
+                 </button>
+                 <button onClick={handleLogout} className="w-full text-red-500 hover:text-red-400 text-xs uppercase tracking-widest">
+                    Sair
+                 </button>
+              </div>
+           </aside>
+
+           {/* MAIN CONTENT AREA */}
+           <main className="flex-1 flex flex-col overflow-hidden">
+              
+              {/* PAGE: PROFILE (PLACEHOLDER) */}
+              {adminPage === 'profile' && (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050505]">
+                   <div className="text-gray-600 mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                      </svg>
+                   </div>
+                   <h2 className="text-2xl font-tech text-white uppercase mb-2">Gerenciamento de Conta</h2>
+                   <p className="text-gray-500 max-w-md text-center">
+                     Este módulo estará disponível em breve. Você poderá gerenciar usuários, visualizar faturamento e métricas avançadas.
+                   </p>
                 </div>
-             </div>
+              )}
 
-             {/* Content */}
-             <div className="p-8 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-8">
-                
-                {/* COLUMN 1: GLOBAL SETTINGS */}
-                <div className="space-y-6">
-                   <h3 className="text-white font-bold border-b border-gray-700 pb-2 uppercase text-sm tracking-widest">Identidade Visual</h3>
-                   
-                   <div>
-                      <label className="block text-gray-400 text-xs uppercase mb-1">Nome da Aplicação</label>
-                      <input type="text" value={config.appName} onChange={e => setConfig({...config, appName: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-gray-400 text-xs uppercase mb-1">Cor de Destaque (Accent)</label>
-                        <div className="flex gap-2">
-                           <input type="color" value={config.accentColor} onChange={e => setConfig({...config, accentColor: e.target.value})} className="h-10 w-10 bg-transparent border-0 cursor-pointer" />
-                           <input type="text" value={config.accentColor} onChange={e => setConfig({...config, accentColor: e.target.value})} className="flex-1 bg-black border border-gray-700 text-white p-2 rounded text-xs" />
+              {/* PAGE: WHITE LABEL CONFIG */}
+              {adminPage === 'whitelabel' && (
+                <>
+                  {/* Internal Header & Tabs */}
+                  <header className="bg-[#0a0a0a] border-b border-[#222] px-8 pt-6 pb-0">
+                     <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-xl font-bold uppercase text-white">Configuração White Label</h2>
+                        <div className="flex gap-3">
+                           <button onClick={resetConfig} disabled={isSavingConfig} className="text-xs uppercase text-gray-500 hover:text-white px-4">
+                              Restaurar Padrões
+                           </button>
+                           <button onClick={saveConfig} disabled={isSavingConfig} className="bg-[var(--accent-color)] text-black px-6 py-2 rounded font-bold uppercase text-xs tracking-widest hover:brightness-110 shadow-lg">
+                              {isSavingConfig ? 'Salvando...' : 'Salvar Alterações'}
+                           </button>
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-gray-400 text-xs uppercase mb-1">Cor de Fundo (Background)</label>
-                        <div className="flex gap-2">
-                           <input type="color" value={config.bgColor} onChange={e => setConfig({...config, bgColor: e.target.value})} className="h-10 w-10 bg-transparent border-0 cursor-pointer" />
-                           <input type="text" value={config.bgColor} onChange={e => setConfig({...config, bgColor: e.target.value})} className="flex-1 bg-black border border-gray-700 text-white p-2 rounded text-xs" />
-                        </div>
-                      </div>
-                   </div>
-
-                   <div>
-                      <label className="block text-gray-400 text-xs uppercase mb-1">Hero Image URL (Home)</label>
-                      <input type="text" value={config.heroImage} onChange={e => setConfig({...config, heroImage: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded text-xs" />
-                      <div className="mt-2 h-20 w-full overflow-hidden rounded border border-gray-800">
-                         <img src={config.heroImage} alt="Hero Preview" className="w-full h-full object-cover opacity-50" />
-                      </div>
-                   </div>
-                </div>
-
-                {/* COLUMN 2: GAME IMAGES */}
-                <div className="space-y-4">
-                   <h3 className="text-white font-bold border-b border-gray-700 pb-2 uppercase text-sm tracking-widest">Imagens dos Jogos (URL)</h3>
-                   
-                   {[
-                     { k: 'game1', l: 'Pulverização de Precisão' },
-                     { k: 'game2', l: 'Navegação Tática' },
-                     { k: 'game4', l: 'Gestão de Potência' },
-                     { k: 'game5', l: 'Voo de Monitoramento' },
-                     { k: 'game6', l: 'Telemetria de Frota' },
-                     { k: 'game8', l: 'Taxa Variável Inteligente' },
-                   ].map(item => (
-                     <div key={item.k}>
-                        <label className="block text-gray-400 text-[10px] uppercase mb-1">{item.l}</label>
-                        <input 
-                          type="text" 
-                          placeholder="Cole a URL da imagem aqui"
-                          value={config.gameImages[item.k as keyof WhiteLabelConfig['gameImages']]} 
-                          onChange={e => handleImageChange(item.k as keyof WhiteLabelConfig['gameImages'], e.target.value)} 
-                          className="w-full bg-black border border-gray-700 text-white p-2 rounded text-xs focus:border-[var(--accent-color)]" 
-                        />
                      </div>
-                   ))}
-                </div>
-             </div>
+                     
+                     {/* Internal Tabs */}
+                     <div className="flex space-x-8">
+                        {(['branding', 'hero', 'games', 'footer'] as ConfigTab[]).map(tab => (
+                          <button 
+                            key={tab}
+                            onClick={() => setConfigTab(tab)}
+                            className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${configTab === tab ? 'border-[var(--accent-color)] text-[var(--accent-color)]' : 'border-transparent text-gray-500 hover:text-white'}`}
+                          >
+                             {tab === 'branding' ? 'Identidade' : tab === 'hero' ? 'Hero Section' : tab === 'games' ? 'Jogos' : 'Rodapé'}
+                          </button>
+                        ))}
+                     </div>
+                  </header>
 
-             {/* Footer Actions */}
-             <div className="p-6 border-t border-gray-800 bg-[#0a0a0a] flex justify-between items-center">
-                <button onClick={resetConfig} className="text-gray-500 text-xs uppercase hover:text-white" disabled={isSavingConfig}>
-                  {isSavingConfig ? 'Restaurando...' : 'Restaurar Padrões'}
-                </button>
-                <div className="flex gap-4">
-                   <button onClick={() => setShowAdminPanel(false)} className="text-white text-xs uppercase tracking-widest px-4 py-2 hover:bg-gray-800 rounded">Cancelar</button>
-                   <button onClick={saveConfig} disabled={isSavingConfig} className="bg-[var(--accent-color)] text-black font-bold uppercase tracking-widest px-6 py-2 rounded shadow-lg hover:brightness-110 disabled:opacity-50">
-                     {isSavingConfig ? 'Salvando...' : 'Salvar Alterações'}
-                   </button>
-                </div>
-             </div>
-          </div>
+                  {/* Form Scroll Area */}
+                  <div className="flex-1 overflow-y-auto p-8 bg-[#050505]">
+                     <div className="max-w-4xl mx-auto space-y-8 pb-12">
+                        
+                        {/* TAB: BRANDING */}
+                        {configTab === 'branding' && (
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                              <div className="bg-[#111] p-6 rounded border border-[#333]">
+                                 <label className="block text-gray-500 text-xs uppercase mb-2">Nome da Aplicação</label>
+                                 <input type="text" value={config.appName} onChange={e => setConfig({...config, appName: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-[var(--accent-color)] outline-none" />
+                              </div>
+                              
+                              <div className="bg-[#111] p-6 rounded border border-[#333]">
+                                 <label className="block text-gray-500 text-xs uppercase mb-2">Cor de Destaque (Accent)</label>
+                                 <div className="flex gap-2">
+                                    <input type="color" value={config.accentColor} onChange={e => setConfig({...config, accentColor: e.target.value})} className="h-12 w-12 bg-transparent border-0 cursor-pointer" />
+                                    <input type="text" value={config.accentColor} onChange={e => setConfig({...config, accentColor: e.target.value})} className="flex-1 bg-black border border-gray-700 text-white p-3 rounded outline-none" />
+                                 </div>
+                              </div>
+
+                              <div className="bg-[#111] p-6 rounded border border-[#333]">
+                                 <label className="block text-gray-500 text-xs uppercase mb-2">Cor de Fundo (Background)</label>
+                                 <div className="flex gap-2">
+                                    <input type="color" value={config.bgColor} onChange={e => setConfig({...config, bgColor: e.target.value})} className="h-12 w-12 bg-transparent border-0 cursor-pointer" />
+                                    <input type="text" value={config.bgColor} onChange={e => setConfig({...config, bgColor: e.target.value})} className="flex-1 bg-black border border-gray-700 text-white p-3 rounded outline-none" />
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {/* TAB: HERO */}
+                        {configTab === 'hero' && (
+                           <div className="space-y-6 animate-fade-in">
+                              <div className="bg-[#111] p-6 rounded border border-[#333]">
+                                 <label className="block text-gray-500 text-xs uppercase mb-2">Imagem de Fundo (URL)</label>
+                                 <input type="text" value={config.heroImage} onChange={e => setConfig({...config, heroImage: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded outline-none mb-2" />
+                                 <img src={config.heroImage} className="w-full h-32 object-cover opacity-50 rounded" alt="Preview" />
+                              </div>
+
+                              <div className="bg-[#111] p-6 rounded border border-[#333] space-y-4">
+                                 <h3 className="text-white font-bold uppercase text-sm border-b border-gray-700 pb-2">Textos Principais</h3>
+                                 
+                                 <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                       <label className="block text-gray-500 text-xs uppercase mb-1">Linha 1 (Branco)</label>
+                                       <input type="text" value={config.heroTitleLine1} onChange={e => setConfig({...config, heroTitleLine1: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                    </div>
+                                    <div>
+                                       <label className="block text-[var(--accent-color)] text-xs uppercase mb-1">Linha 2 (Gradiente)</label>
+                                       <input type="text" value={config.heroTitleLine2} onChange={e => setConfig({...config, heroTitleLine2: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                    </div>
+                                    <div>
+                                       <label className="block text-gray-500 text-xs uppercase mb-1">Linha 3 (Branco Grande)</label>
+                                       <input type="text" value={config.heroTitleLine3} onChange={e => setConfig({...config, heroTitleLine3: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                    </div>
+                                 </div>
+
+                                 <div>
+                                    <label className="block text-gray-500 text-xs uppercase mb-1">Descrição</label>
+                                    <textarea value={config.heroDescription} onChange={e => setConfig({...config, heroDescription: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded h-20" />
+                                 </div>
+
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                       <label className="block text-gray-500 text-xs uppercase mb-1">Tagline (Topo)</label>
+                                       <input type="text" value={config.heroTagline} onChange={e => setConfig({...config, heroTagline: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                    </div>
+                                    <div>
+                                       <label className="block text-gray-500 text-xs uppercase mb-1">Texto do Botão</label>
+                                       <input type="text" value={config.heroButtonText} onChange={e => setConfig({...config, heroButtonText: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {/* TAB: GAMES */}
+                        {configTab === 'games' && (
+                           <div className="grid grid-cols-1 gap-6 animate-fade-in">
+                              {Object.keys(config.games).map((key) => {
+                                 const gameKey = key as keyof WhiteLabelConfig['games'];
+                                 const game = config.games[gameKey];
+                                 return (
+                                    <div key={gameKey} className="bg-[#111] p-6 rounded border border-[#333] flex flex-col gap-4">
+                                       <div className="flex justify-between border-b border-gray-800 pb-2">
+                                          <span className="text-[var(--accent-color)] font-bold uppercase">{gameKey}</span>
+                                       </div>
+                                       
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-1">Título do Card</label>
+                                             <input type="text" value={game.title} onChange={e => updateGameConfig(gameKey, 'title', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                          </div>
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-1">Tag (Canto Sup. Esq.)</label>
+                                             <input type="text" value={game.tag} onChange={e => updateGameConfig(gameKey, 'tag', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                          </div>
+                                       </div>
+
+                                       <div>
+                                          <label className="block text-gray-500 text-xs uppercase mb-1">Descrição</label>
+                                          <textarea value={game.description} onChange={e => updateGameConfig(gameKey, 'description', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded h-16" />
+                                       </div>
+
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-1">Texto do Botão</label>
+                                             <input type="text" value={game.buttonText} onChange={e => updateGameConfig(gameKey, 'buttonText', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                          </div>
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-1">Imagem URL (Opcional)</label>
+                                             <input type="text" value={game.image} onChange={e => updateGameConfig(gameKey, 'image', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" placeholder="Deixe vazio para usar a arte padrão" />
+                                          </div>
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                           </div>
+                        )}
+
+                        {/* TAB: FOOTER */}
+                        {configTab === 'footer' && (
+                           <div className="bg-[#111] p-6 rounded border border-[#333] space-y-4 animate-fade-in">
+                              <div>
+                                 <label className="block text-gray-500 text-xs uppercase mb-1">Texto de Copyright</label>
+                                 <input type="text" value={config.footerText} onChange={e => setConfig({...config, footerText: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded" />
+                              </div>
+                              <div>
+                                 <label className="block text-gray-500 text-xs uppercase mb-1">Texto do Link Comercial</label>
+                                 <input type="text" value={config.footerLinkText} onChange={e => setConfig({...config, footerLinkText: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded" />
+                              </div>
+                           </div>
+                        )}
+
+                     </div>
+                  </div>
+                </>
+              )}
+           </main>
         </div>
       )}
 
@@ -395,17 +614,21 @@ const App: React.FC = () => {
               </div>
               <div className="mb-6 animate-enter">
                  <div className="inline-flex items-center gap-3 px-4 py-1 border-x border-[var(--accent-color)] bg-[var(--accent-color)]/10 backdrop-blur-sm">
-                    <span className="text-[var(--accent-color)] text-xs font-bold tracking-[0.4em] uppercase font-tech glow-text-orange">Season 01 &bull; Active</span>
+                    <span className="text-[var(--accent-color)] text-xs font-bold tracking-[0.4em] uppercase font-tech glow-text-orange">{config.heroTagline}</span>
                  </div>
               </div>
               <h1 className="text-5xl md:text-8xl font-black mb-6 uppercase italic tracking-tighter leading-none text-white drop-shadow-2xl animate-enter font-tech" style={{ animationDelay: '0.1s' }}>
-                Domine a <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent-color)] to-yellow-500 glow-text-orange">Tecnologia</span> <span className="text-white text-4xl md:text-7xl block mt-2">Do Campo</span>
+                {config.heroTitleLine1} <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent-color)] to-yellow-500 glow-text-orange">{config.heroTitleLine2}</span> 
+                <span className="text-white text-4xl md:text-7xl block mt-2">{config.heroTitleLine3}</span>
               </h1>
               <p className="text-gray-300 max-w-xl text-lg md:text-xl font-medium mb-12 animate-enter leading-relaxed tracking-wide" style={{ animationDelay: '0.2s' }}>
-                Teste seus reflexos e estratégia.<br/> <span className="text-[var(--cyan-accent)]">A operação começa agora.</span>
+                {config.heroDescription}
               </p>
               <div className="animate-enter" style={{ animationDelay: '0.3s' }}>
-                <button onClick={scrollToOperations} className="px-12 py-5 bg-[var(--accent-color)] hover:bg-[#ff8533] text-white font-tech font-bold text-xl uppercase tracking-widest clip-path-polygon transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,102,0,0.4)] animate-pulse-slow" style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}>[ Iniciar Operação ]</button>
+                <button onClick={scrollToOperations} className="px-12 py-5 bg-[var(--accent-color)] hover:bg-[#ff8533] text-white font-tech font-bold text-xl uppercase tracking-widest clip-path-polygon transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,102,0,0.4)] animate-pulse-slow" style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}>
+                  {config.heroButtonText}
+                </button>
               </div>
             </div>
           </section>
@@ -419,157 +642,49 @@ const App: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
                   
-                  {/* CARD 1: Weed Control */}
-                  <div className="group relative bg-[#121212] border border-[#333] hover:border-[var(--accent-color)] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-[#4E342E] overflow-hidden border-b border-[#333] group-hover:border-[var(--accent-color)] transition-colors">
-                       {/* Config Image Override */}
-                       {config.gameImages.game1 ? (
-                          <img src={config.gameImages.game1} alt="Weed Control" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <>
-                           <div className="absolute inset-0" style={{background: 'repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,0,0,0.2) 40px, rgba(0,0,0,0.2) 44px)'}}></div>
-                           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-10 h-14 bg-[#FF6F00] shadow-[0_10px_20px_rgba(0,0,0,0.5)] rounded-sm flex flex-col items-center">
-                              <div className="w-8 h-4 bg-sky-300 mt-2 rounded-sm opacity-80"></div>
-                              <div className="w-full h-1 bg-black/20 mt-1"></div>
-                           </div>
-                         </>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[var(--accent-color)] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10">⚡ Reflexo Rápido</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[var(--accent-color)] text-xs mb-2">MISSION_01</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">PULVERIZAÇÃO DE PRECISÃO</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">Identifique e elimine invasoras em alta velocidade. Aplique o defensivo apenas onde é necessário e evite desperdícios.</p>
-                       <button onClick={() => handleStartGame('game1')} className="w-full py-3 border border-gray-600 group-hover:bg-[var(--accent-color)] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Jogar Agora</button>
-                    </div>
-                  </div>
-
-                  {/* CARD 2: Memory Map */}
-                  <div className="group relative bg-[#121212] border border-[#333] hover:border-[var(--cyan-accent)] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-[#0F172A] overflow-hidden border-b border-[#333] group-hover:border-[var(--cyan-accent)] transition-colors">
-                       {config.gameImages.game2 ? (
-                          <img src={config.gameImages.game2} alt="Memory Map" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <>
-                           <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(#1e293b 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
-                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-cyan-500/30 rounded-full flex items-center justify-center">
-                              <div className="w-full h-[1px] bg-cyan-500/50 rotate-45"></div>
-                              <div className="w-full h-[1px] bg-cyan-500/50 -rotate-45"></div>
-                           </div>
-                         </>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[var(--cyan-accent)] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10">🧠 Memória & Lógica</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[var(--cyan-accent)] text-xs mb-2">MISSION_02</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">NAVEGAÇÃO TÁTICA</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">O piloto automático desligou. Memorize o traçado do talhão e execute a linha de plantio perfeita sem sobreposição.</p>
-                       <button onClick={() => handleStartGame('game2')} className="w-full py-3 border border-gray-600 group-hover:bg-[var(--cyan-accent)] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Jogar Agora</button>
-                    </div>
-                  </div>
-
-                  {/* CARD 3: Torque Master */}
-                  <div className="group relative bg-[#1a0500] border border-[#441000] hover:border-[#ff3300] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-gradient-to-b from-sky-400 to-orange-200 overflow-hidden border-b border-[#441000] group-hover:border-[#ff3300] transition-colors">
-                       {config.gameImages.game4 ? (
-                          <img src={config.gameImages.game4} alt="Torque Master" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <>
-                           <div className="absolute bottom-0 w-full h-8 bg-[#558B2F] border-t-4 border-[#33691E]"></div>
-                           <div className="absolute bottom-6 right-10 w-10 h-10 bg-black/10 rounded-full blur-sm"></div>
-                           <div className="absolute bottom-4 right-12">
-                              <div className="w-12 h-8 bg-[#D32F2F] rounded-t-lg relative">
-                                 <div className="absolute -top-3 right-2 w-1 h-3 bg-black"></div>
-                                 <div className="absolute bottom-0 -left-2 w-8 h-8 bg-[#212121] rounded-full border-2 border-yellow-400"></div>
-                                 <div className="absolute bottom-0 -right-1 w-5 h-5 bg-[#212121] rounded-full border-2 border-yellow-400"></div>
+                  {/* GAME CARDS ITERATION */}
+                  {(['game1', 'game2', 'game4', 'game5', 'game6', 'game8'] as const).map((key) => {
+                     const game = config.games[key];
+                     // Map key to ViewState
+                     const viewState = key as ViewState; 
+                     
+                     // Colors / Fallback Art Logic based on key
+                     const accent = (key === 'game1' || key === 'game4') ? 'var(--accent-color)' : (key === 'game2' ? 'var(--cyan-accent)' : (key === 'game5' || key === 'game8' ? '#00E676' : '#FDD835'));
+                     const borderHover = (key === 'game1') ? 'hover:border-[var(--accent-color)]' : (key === 'game2' ? 'hover:border-[var(--cyan-accent)]' : (key === 'game4' ? 'hover:border-[#ff3300]' : (key === 'game5' ? 'hover:border-[#00ff00]' : (key === 'game6' ? 'hover:border-[#FDD835]' : 'hover:border-[#00E676]'))));
+                     const btnHover = (key === 'game1') ? 'group-hover:bg-[var(--accent-color)]' : (key === 'game2' ? 'group-hover:bg-[var(--cyan-accent)]' : (key === 'game4' ? 'group-hover:bg-[#ff3300]' : (key === 'game5' ? 'group-hover:bg-[#00ff00]' : (key === 'game6' ? 'group-hover:bg-[#FDD835]' : 'group-hover:bg-[#00E676]'))));
+                     
+                     return (
+                        <div key={key} className={`group relative bg-[#121212] border border-[#333] ${borderHover} transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col`}>
+                           <div className="relative h-1/2 bg-[#1a1a1a] overflow-hidden border-b border-[#333] transition-colors">
+                              {game.image ? (
+                                 <img src={game.image} alt={game.title} className="absolute inset-0 w-full h-full object-cover" />
+                              ) : (
+                                 // Fallback CSS Art (Simplified for dynamic loop, kept distinct by key)
+                                 <div className="absolute inset-0 opacity-50 flex items-center justify-center">
+                                    {key === 'game1' && <div className="w-20 h-20 bg-orange-500/20 rounded-full blur-xl"></div>}
+                                    {key === 'game2' && <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/40 via-transparent to-transparent"></div>}
+                                    {key === 'game4' && <div className="w-full h-10 bg-red-900/40 absolute bottom-0"></div>}
+                                    {key === 'game5' && <div className="w-2 h-2 bg-green-500 animate-ping absolute top-1/2 left-1/2"></div>}
+                                    {key === 'game6' && <div className="grid grid-cols-3 gap-1"><div className="w-4 h-4 bg-yellow-500/50"></div></div>}
+                                    {key === 'game8' && <div className="w-full h-full bg-gradient-to-tr from-green-900/20 to-transparent"></div>}
+                                 </div>
+                              )}
+                              
+                              <div className="absolute top-4 left-0 text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10" style={{ backgroundColor: accent }}>
+                                 {game.tag}
                               </div>
                            </div>
-                         </>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[#ff3300] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10">⚙️ Controle de Motor</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[#ff3300] text-xs mb-2">MISSION_03</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">GESTÃO DE POTÊNCIA</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">Desafio de terreno. Mantenha o motor na faixa verde de RPM e controle o torque para vencer a inclinação sem patinar.</p>
-                       <button onClick={() => handleStartGame('game4')} className="w-full py-3 border border-gray-600 group-hover:bg-[#ff3300] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Acelerar</button>
-                    </div>
-                  </div>
-
-                  {/* CARD 4: Drone Rush */}
-                  <div className="group relative bg-[#001a00] border border-[#004400] hover:border-[#00ff00] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-[#2E7D32] overflow-hidden border-b border-[#004400] group-hover:border-[#00ff00] transition-colors">
-                       {config.gameImages.game5 ? (
-                          <img src={config.gameImages.game5} alt="Drone Rush" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <>
-                           <div className="absolute inset-0" style={{background: 'repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(0,0,0,0.1) 20px)'}}></div>
-                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded shadow-lg flex items-center justify-center">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full z-10 animate-pulse"></div>
+                           <div className="p-6 flex flex-col flex-grow relative">
+                              <div className="font-mono-hud text-xs mb-2" style={{ color: accent }}>MISSION_0{key.replace('game','')}</div>
+                              <h3 className="text-xl font-tech text-white mb-2 uppercase italic leading-tight">{game.title}</h3>
+                              <p className="text-gray-500 text-xs mb-6 flex-grow">{game.description}</p>
+                              <button onClick={() => handleStartGame(viewState)} className={`w-full py-3 border border-gray-600 ${btnHover} group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech`}>
+                                 {game.buttonText}
+                              </button>
                            </div>
-                         </>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[#00ff00] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10">🕹️ Pilotagem Remota</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[#00ff00] text-xs mb-2">MISSION_04</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">VOO DE MONITORAMENTO</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">Decole o VANT. Desvie de árvores e obstáculos físicos para mapear os focos de infestação na lavoura.</p>
-                       <button onClick={() => handleStartGame('game5')} className="w-full py-3 border border-gray-600 group-hover:bg-[#00ff00] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Iniciar Voo</button>
-                    </div>
-                  </div>
-
-                  {/* CARD 5: AGRO PANIC */}
-                  <div className="group relative bg-[#0F2011] border border-[#1B5E20] hover:border-[#FDD835] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-[#261C15] overflow-hidden border-b border-[#1B5E20] group-hover:border-[#FDD835] transition-colors p-4">
-                       {config.gameImages.game6 ? (
-                          <img src={config.gameImages.game6} alt="Agro Panic" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <div className="grid grid-cols-3 grid-rows-2 gap-2 h-full w-full opacity-80">
-                            <div className="bg-[#FFC107] rounded-sm border border-yellow-600 flex items-center justify-center"><div className="w-2 h-2 bg-black rounded-full"></div></div>
-                            <div className="bg-[#FFC107] rounded-sm border border-yellow-600 flex items-center justify-center"><div className="w-2 h-2 bg-black rounded-full"></div></div>
-                            <div className="bg-[#FF1744] rounded-sm border border-red-600 animate-pulse flex items-center justify-center shadow-[0_0_10px_red]"><span className="text-[8px] font-bold text-white">!</span></div>
-                            <div className="bg-[#FFC107] rounded-sm border border-yellow-600 flex items-center justify-center"><div className="w-2 h-2 bg-black rounded-full"></div></div>
-                            <div className="bg-[#FFC107] rounded-sm border border-yellow-600 flex items-center justify-center"><div className="w-2 h-2 bg-black rounded-full"></div></div>
-                            <div className="bg-[#FFC107] rounded-sm border border-yellow-600 flex items-center justify-center"><div className="w-2 h-2 bg-black rounded-full"></div></div>
-                         </div>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[#FDD835] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-lg z-10">📡 Gestão de Crise</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[#FDD835] text-xs mb-2">MISSION_05</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">TELEMETRIA DE FROTA</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">Você é a Torre de Controle. Identifique alertas críticos nas máquinas via satélite e evite a parada da operação.</p>
-                       <button onClick={() => handleStartGame('game6')} className="w-full py-3 border border-gray-600 group-hover:bg-[#FDD835] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Monitorar</button>
-                    </div>
-                  </div>
-
-                  {/* CARD 6: VARIABLE RATE MASTER */}
-                  <div className="group relative bg-[#1A1A1A] border border-[#333] hover:border-[#00E676] transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col">
-                    <div className="relative h-1/2 bg-[#212121] overflow-hidden border-b border-[#333] group-hover:border-[#00E676] transition-colors">
-                       {config.gameImages.game8 ? (
-                          <img src={config.gameImages.game8} alt="Variable Rate" className="absolute inset-0 w-full h-full object-cover" />
-                       ) : (
-                         <>
-                           <div className="absolute top-0 left-0 w-full h-1/3 bg-[#FDD835]/40 border-b border-white/5"></div>
-                           <div className="absolute top-1/3 left-0 w-full h-1/3 bg-[#FB8C00]/40 border-b border-white/5"></div>
-                           <div className="absolute bottom-0 left-0 w-full h-1/3 bg-[#E53935]/40"></div>
-                           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-32 h-2 bg-[#37474F] shadow-lg flex justify-between px-1">
-                              <div className="w-1 h-2 bg-white/50"></div><div className="w-1 h-2 bg-white/50"></div><div className="w-1 h-2 bg-white/50"></div>
-                           </div>
-                           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-28 h-20 bg-[#00E676]/20 blur-sm"></div>
-                         </>
-                       )}
-                       <div className="absolute top-4 left-0 bg-[#00E676] text-black text-xs font-bold px-3 py-1 font-tech uppercase shadow-[0_0_15px_rgba(0,230,118,0.4)] z-10">🎯 Prescrição de Insumos</div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-grow relative">
-                       <div className="font-mono-hud text-[#00E676] text-xs mb-2">MISSION_06</div>
-                       <h3 className="text-xl font-tech text-white mb-2 uppercase italic">TAXA VARIÁVEL INTELIGENTE</h3>
-                       <p className="text-gray-500 text-xs mb-6 flex-grow">Analise o mapa de produtividade em tempo real. Ajuste a dosagem exata de adubo para cada mancha de solo.</p>
-                       <button onClick={() => handleStartGame('game8')} className="w-full py-3 border border-gray-600 group-hover:bg-[#00E676] group-hover:text-black text-white font-bold uppercase tracking-widest transition-all text-xs font-tech">Iniciar Aplicação</button>
-                    </div>
-                  </div>
+                        </div>
+                     );
+                  })}
 
                 </div>
 
@@ -663,8 +778,8 @@ const App: React.FC = () => {
             <div className="flex justify-center items-center gap-2 mb-2">
                <span className="font-tech text-lg text-white tracking-widest uppercase">{config.appName}</span>
             </div>
-            <p className="text-gray-600 text-[10px] uppercase tracking-widest mb-4">&copy; 2024 {config.appName}</p>
-            <a onClick={goToBusiness} className="cursor-pointer text-gray-500 hover:text-[var(--accent-color)] text-xs uppercase tracking-wider transition-colors border-b border-transparent hover:border-[var(--accent-color)] pb-0.5">Área Comercial / Contrate para Eventos</a>
+            <p className="text-gray-600 text-[10px] uppercase tracking-widest mb-4">{config.footerText}</p>
+            <a onClick={goToBusiness} className="cursor-pointer text-gray-500 hover:text-[var(--accent-color)] text-xs uppercase tracking-wider transition-colors border-b border-transparent hover:border-[var(--accent-color)] pb-0.5">{config.footerLinkText}</a>
           </footer>
       )}
     </div>
