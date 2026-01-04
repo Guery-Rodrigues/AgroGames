@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from '@supabase/supabase-js';
 
 // Credenciais do Projeto Supabase
 const supabaseUrl = 'https://nnvyivqsmbmjbdfcturf.supabase.co';
