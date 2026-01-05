@@ -82,6 +82,36 @@ const GameCanvas: React.FC = () => {
     if (saved) setHighScore(parseInt(saved, 10));
   }, []);
 
+  // --- Supabase Logic ---
+  const fetchHighScores = async () => {
+    setIsLoadingRanking(true);
+    const { data } = await supabase.from('game_scores').select('*').eq('game_id', 'weed_control').order('score', { ascending: false }).limit(10);
+    setHighScoresList(data || []);
+    setIsLoadingRanking(false);
+  };
+  const handleSaveScore = async () => {
+    if (!formData.name.trim()) return;
+    setIsSaving(true);
+    await supabase.from('game_scores').insert([{
+      game_id: 'weed_control', player_name: formData.name.trim().toUpperCase(), company_name: formData.company.trim().toUpperCase(), phone: formData.phone, score: score
+    }]);
+    setIsScoreSaved(true);
+    await fetchHighScores();
+    setIsSaving(false);
+  };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // --- Auto-fetch leaderboard on Game Over ---
+  useEffect(() => {
+    if (gameState === 'GAME_OVER') {
+      fetchHighScores();
+    }
+  }, [gameState]);
+
+
   // --- Core Logic ---
 
   const initGame = () => {
@@ -409,29 +439,7 @@ const GameCanvas: React.FC = () => {
     }
 
     return () => cancelAnimationFrame(requestRef.current);
-  }, [gameState, score]); // Re-bind if major state changes, though mutable state handles frame-to-frame
-
-  // --- Supabase Logic (Copy-Paste from others for consistency) ---
-  const fetchHighScores = async () => {
-    setIsLoadingRanking(true);
-    const { data } = await supabase.from('game_scores').select('*').eq('game_id', 'weed_control').order('score', { ascending: false }).limit(10);
-    setHighScoresList(data || []);
-    setIsLoadingRanking(false);
-  };
-  const handleSaveScore = async () => {
-    if (!formData.name.trim()) return;
-    setIsSaving(true);
-    await supabase.from('game_scores').insert([{
-      game_id: 'weed_control', player_name: formData.name.trim().toUpperCase(), company_name: formData.company.trim().toUpperCase(), phone: formData.phone, score: score
-    }]);
-    setIsScoreSaved(true);
-    await fetchHighScores();
-    setIsSaving(false);
-  };
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  }, [gameState, score]); 
 
   return (
     <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center">

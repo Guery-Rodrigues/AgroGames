@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from './components/GameCanvas';
 import MemoryMapCanvas from './components/MemoryMapCanvas';
 import TorqueMasterCanvas from './components/TorqueMasterCanvas';
@@ -37,8 +37,9 @@ interface GameConfig {
   title: string;
   tag: string;
   description: string;
-  image: string; // URL
+  image: string; // URL or Base64
   buttonText: string;
+  active?: boolean; // New field for visibility
 }
 
 interface WhiteLabelConfig {
@@ -70,6 +71,7 @@ interface WhiteLabelConfig {
   // 4. Footer
   footerText: string;
   footerLinkText: string;
+  footerLinkUrl?: string; // Optional external link
 }
 
 const DEFAULT_CONFIG: WhiteLabelConfig = {
@@ -92,47 +94,54 @@ const DEFAULT_CONFIG: WhiteLabelConfig = {
       tag: "⚡ Reflexo Rápido",
       description: "Identifique e elimine invasoras em alta velocidade. Aplique o defensivo apenas onde é necessário e evite desperdícios.",
       image: "",
-      buttonText: "Jogar Agora"
+      buttonText: "Jogar Agora",
+      active: true
     },
     game2: {
       title: "NAVEGAÇÃO TÁTICA",
       tag: "🧠 Memória & Lógica",
       description: "O piloto automático desligou. Memorize o traçado do talhão e execute a linha de plantio perfeita sem sobreposição.",
       image: "",
-      buttonText: "Jogar Agora"
+      buttonText: "Jogar Agora",
+      active: true
     },
     game4: {
       title: "GESTÃO DE POTÊNCIA",
       tag: "⚙️ Controle de Motor",
       description: "Desafio de terreno. Mantenha o motor na faixa verde de RPM e controle o torque para vencer a inclinação sem patinar.",
       image: "",
-      buttonText: "Acelerar"
+      buttonText: "Acelerar",
+      active: true
     },
     game5: {
       title: "VOO DE MONITORAMENTO",
       tag: "🕹️ Pilotagem Remota",
       description: "Decole o VANT. Desvie de árvores e obstáculos físicos para mapear os focos de infestação na lavoura.",
       image: "",
-      buttonText: "Iniciar Voo"
+      buttonText: "Iniciar Voo",
+      active: true
     },
     game6: {
       title: "TELEMETRIA DE FROTA",
       tag: "📡 Gestão de Crise",
       description: "Você é a Torre de Controle. Identifique alertas críticos nas máquinas via satélite e evite a parada da operação.",
       image: "",
-      buttonText: "Monitorar"
+      buttonText: "Monitorar",
+      active: true
     },
     game8: {
       title: "TAXA VARIÁVEL INTELIGENTE",
       tag: "🎯 Prescrição de Insumos",
       description: "Analise o mapa de produtividade em tempo real. Ajuste a dosagem exata de adubo para cada mancha de solo.",
       image: "",
-      buttonText: "Iniciar Aplicação"
+      buttonText: "Iniciar Aplicação",
+      active: true
     }
   },
 
   footerText: "© 2024 AGRO ARCADE",
-  footerLinkText: "Área Comercial / Contrate para Eventos"
+  footerLinkText: "Área Comercial / Contrate para Eventos",
+  footerLinkUrl: ""
 };
 
 const App: React.FC = () => {
@@ -143,6 +152,8 @@ const App: React.FC = () => {
   // Admin Navigation State
   const [adminPage, setAdminPage] = useState<AdminPage>('whitelabel');
   const [configTab, setConfigTab] = useState<ConfigTab>('branding');
+  // State for the new drawer editing flow
+  const [editingGameKey, setEditingGameKey] = useState<keyof WhiteLabelConfig['games'] | null>(null);
   
   // --- STATE: RANKING ---
   const [rankingTab, setRankingTab] = useState<RankTab>('general');
@@ -302,8 +313,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Helper to update specific game config
-  const updateGameConfig = (gameKey: keyof WhiteLabelConfig['games'], field: keyof GameConfig, value: string) => {
+  // Helper to update specific game config (Generic Value)
+  const updateGameConfig = (gameKey: keyof WhiteLabelConfig['games'], field: keyof GameConfig, value: any) => {
     setConfig(prev => ({
       ...prev,
       games: {
@@ -314,6 +325,24 @@ const App: React.FC = () => {
         }
       }
     }));
+  };
+
+  // Helper for Image Upload (Base64)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'hero' | keyof WhiteLabelConfig['games']) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        if (target === 'hero') {
+          setConfig(prev => ({ ...prev, heroImage: base64String }));
+        } else {
+          // It's a game key
+          updateGameConfig(target, 'image', base64String);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // --- HANDLERS: NAVIGATION ---
@@ -347,6 +376,13 @@ const App: React.FC = () => {
   };
 
   const goToBusiness = () => { 
+    // Check if external link is configured
+    if (config.footerLinkUrl && config.footerLinkUrl.trim() !== '') {
+        window.open(config.footerLinkUrl, '_blank');
+        trackEvent('external_link_click', { url: config.footerLinkUrl });
+        return;
+    }
+
     trackEvent('business_click', { label: 'B2B Navigation' });
     setView('business'); 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
@@ -464,7 +500,7 @@ const App: React.FC = () => {
            </aside>
 
            {/* MAIN CONTENT AREA */}
-           <main className="flex-1 flex flex-col overflow-hidden">
+           <main className="flex-1 flex flex-col overflow-hidden relative">
               
               {/* PAGE: PROFILE (PLACEHOLDER) */}
               {adminPage === 'profile' && (
@@ -513,8 +549,8 @@ const App: React.FC = () => {
                   </header>
 
                   {/* Form Scroll Area */}
-                  <div className="flex-1 overflow-y-auto p-8 bg-[#050505]">
-                     <div className="max-w-4xl mx-auto space-y-8 pb-12">
+                  <div className="flex-1 overflow-y-auto p-8 bg-[#050505] relative">
+                     <div className="max-w-6xl mx-auto space-y-8 pb-12">
                         
                         {/* TAB: BRANDING */}
                         {configTab === 'branding' && (
@@ -546,8 +582,14 @@ const App: React.FC = () => {
                         {configTab === 'hero' && (
                            <div className="space-y-6 animate-fade-in">
                               <div className="bg-[#111] p-6 rounded border border-[#333]">
-                                 <label className="block text-gray-500 text-xs uppercase mb-2">Imagem de Fundo (URL)</label>
-                                 <input type="text" value={config.heroImage} onChange={e => setConfig({...config, heroImage: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded outline-none mb-2" />
+                                 <label className="block text-gray-500 text-xs uppercase mb-2">Imagem de Fundo (URL ou Upload)</label>
+                                 <div className="flex gap-2 mb-2">
+                                    <input type="text" value={config.heroImage} onChange={e => setConfig({...config, heroImage: e.target.value})} className="flex-1 bg-black border border-gray-700 text-white p-3 rounded outline-none" placeholder="https://..." />
+                                    <label className="bg-[var(--accent-color)] text-black px-4 py-3 rounded cursor-pointer font-bold uppercase text-xs flex items-center hover:brightness-110">
+                                       📁 Upload
+                                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'hero')} />
+                                    </label>
+                                 </div>
                                  <img src={config.heroImage} className="w-full h-32 object-cover opacity-50 rounded" alt="Preview" />
                               </div>
 
@@ -588,47 +630,181 @@ const App: React.FC = () => {
                            </div>
                         )}
 
-                        {/* TAB: GAMES */}
+                        {/* TAB: GAMES (REFACTORED LIST VIEW) */}
                         {configTab === 'games' && (
-                           <div className="grid grid-cols-1 gap-6 animate-fade-in">
-                              {Object.keys(config.games).map((key) => {
-                                 const gameKey = key as keyof WhiteLabelConfig['games'];
-                                 const game = config.games[gameKey];
-                                 return (
-                                    <div key={gameKey} className="bg-[#111] p-6 rounded border border-[#333] flex flex-col gap-4">
-                                       <div className="flex justify-between border-b border-gray-800 pb-2">
-                                          <span className="text-[var(--accent-color)] font-bold uppercase">{gameKey}</span>
-                                       </div>
-                                       
-                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div>
-                                             <label className="block text-gray-500 text-xs uppercase mb-1">Título do Card</label>
-                                             <input type="text" value={game.title} onChange={e => updateGameConfig(gameKey, 'title', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                           <div className="animate-fade-in relative min-h-[500px]">
+                              
+                              {/* --- LIST HEADER --- */}
+                              <div className="grid grid-cols-12 gap-4 mb-3 px-4 py-2 text-xs font-bold uppercase text-gray-500 tracking-widest border-b border-white/10">
+                                 <div className="col-span-1 text-center">#</div>
+                                 <div className="col-span-6">Configuração do Jogo</div>
+                                 <div className="col-span-2 text-center">Status</div>
+                                 <div className="col-span-3 text-right">Ações</div>
+                              </div>
+
+                              {/* --- GAME LIST ITEMS --- */}
+                              <div className="space-y-2">
+                                 {Object.entries(config.games).map(([key, val], index) => {
+                                    const game = val as GameConfig;
+                                    const isActive = game.active !== false; // Default true
+                                    const gameKey = key as keyof WhiteLabelConfig['games'];
+
+                                    return (
+                                       <div key={key} className={`group bg-[#111] border ${isActive ? 'border-white/5' : 'border-red-900/20'} hover:border-[var(--accent-color)]/30 hover:bg-white/5 rounded-lg p-3 grid grid-cols-12 gap-4 items-center transition-all duration-200`}>
+                                          
+                                          {/* 1. Drag Handle / Order */}
+                                          <div className="col-span-1 flex justify-center text-gray-600 cursor-move hover:text-white">
+                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" /></svg>
                                           </div>
+
+                                          {/* 2. Game Info (Thumb + Title) */}
+                                          <div className="col-span-6 flex items-center gap-4">
+                                             <div className="w-12 h-12 bg-black rounded overflow-hidden border border-white/10 shrink-0">
+                                                {game.image ? (
+                                                   <img src={game.image} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                   <div className="w-full h-full flex items-center justify-center text-xs text-gray-700 font-mono">IMG</div>
+                                                )}
+                                             </div>
+                                             <div>
+                                                <div className={`font-bold text-sm ${isActive ? 'text-white' : 'text-gray-500'}`}>{game.title}</div>
+                                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{game.tag}</div>
+                                             </div>
+                                          </div>
+
+                                          {/* 3. Status Badge */}
+                                          <div className="col-span-2 flex justify-center">
+                                             <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${isActive ? 'bg-green-900/20 text-green-400 border-green-900/50' : 'bg-red-900/20 text-red-400 border-red-900/50'}`}>
+                                                {isActive ? 'Publicado' : 'Oculto'}
+                                             </span>
+                                          </div>
+
+                                          {/* 4. Actions (Toggle + Edit) */}
+                                          <div className="col-span-3 flex items-center justify-end gap-3">
+                                             {/* Toggle Switch */}
+                                             <button 
+                                                onClick={() => updateGameConfig(gameKey, 'active', !isActive)}
+                                                className={`w-10 h-5 rounded-full relative transition-colors ${isActive ? 'bg-[var(--accent-color)]' : 'bg-gray-700'}`}
+                                             >
+                                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${isActive ? 'left-6' : 'left-1'}`}></div>
+                                             </button>
+
+                                             {/* Edit Button */}
+                                             <button 
+                                                onClick={() => setEditingGameKey(gameKey)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded text-xs uppercase font-bold tracking-wider border border-white/10 transition-colors"
+                                             >
+                                                <span>Editar</span>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                             </button>
+                                          </div>
+                                       </div>
+                                    );
+                                 })}
+                              </div>
+
+                              {/* --- EDIT DRAWER (SLIDE-OVER) --- */}
+                              <div className={`fixed inset-y-0 right-0 w-[500px] bg-[#0F0F0F] border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] transform transition-transform duration-300 ease-in-out z-50 flex flex-col ${editingGameKey ? 'translate-x-0' : 'translate-x-full'}`}>
+                                 
+                                 {editingGameKey && (
+                                    <>
+                                       <div className="px-8 py-6 border-b border-white/10 flex justify-between items-center bg-[#111]">
                                           <div>
-                                             <label className="block text-gray-500 text-xs uppercase mb-1">Tag (Canto Sup. Esq.)</label>
-                                             <input type="text" value={game.tag} onChange={e => updateGameConfig(gameKey, 'tag', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
+                                             <div className="text-[var(--accent-color)] text-xs font-bold uppercase tracking-widest mb-1">Editando Jogo</div>
+                                             <h3 className="text-xl font-white font-bold">{config.games[editingGameKey].title}</h3>
+                                          </div>
+                                          <button onClick={() => setEditingGameKey(null)} className="text-gray-500 hover:text-white transition-colors">
+                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                          </button>
+                                       </div>
+
+                                       <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                                          {/* Form Content */}
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-2">Título do Card</label>
+                                             <input 
+                                                type="text" 
+                                                value={config.games[editingGameKey].title} 
+                                                onChange={e => updateGameConfig(editingGameKey, 'title', e.target.value)} 
+                                                className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-[var(--accent-color)] outline-none" 
+                                             />
+                                          </div>
+
+                                          <div className="grid grid-cols-2 gap-4">
+                                             <div>
+                                                <label className="block text-gray-500 text-xs uppercase mb-2">Tag (Label)</label>
+                                                <input 
+                                                   type="text" 
+                                                   value={config.games[editingGameKey].tag} 
+                                                   onChange={e => updateGameConfig(editingGameKey, 'tag', e.target.value)} 
+                                                   className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-[var(--accent-color)] outline-none" 
+                                                />
+                                             </div>
+                                             <div>
+                                                <label className="block text-gray-500 text-xs uppercase mb-2">Texto do Botão</label>
+                                                <input 
+                                                   type="text" 
+                                                   value={config.games[editingGameKey].buttonText} 
+                                                   onChange={e => updateGameConfig(editingGameKey, 'buttonText', e.target.value)} 
+                                                   className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-[var(--accent-color)] outline-none" 
+                                                />
+                                             </div>
+                                          </div>
+
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-2">Descrição Curta</label>
+                                             <textarea 
+                                                value={config.games[editingGameKey].description} 
+                                                onChange={e => updateGameConfig(editingGameKey, 'description', e.target.value)} 
+                                                className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-[var(--accent-color)] outline-none h-32 resize-none" 
+                                             />
+                                          </div>
+
+                                          <div>
+                                             <label className="block text-gray-500 text-xs uppercase mb-2">Imagem de Capa</label>
+                                             <div className="bg-black border border-gray-700 rounded p-4 flex flex-col gap-4">
+                                                {config.games[editingGameKey].image ? (
+                                                   <img src={config.games[editingGameKey].image} alt="Preview" className="w-full h-40 object-cover rounded border border-white/10" />
+                                                ) : (
+                                                   <div className="w-full h-40 flex items-center justify-center bg-[#111] text-gray-600 text-xs border border-dashed border-gray-700 rounded">
+                                                      Sem imagem definida
+                                                   </div>
+                                                )}
+                                                
+                                                <div className="flex gap-2">
+                                                   <input 
+                                                      type="text" 
+                                                      placeholder="URL da Imagem..." 
+                                                      value={config.games[editingGameKey].image} 
+                                                      onChange={e => updateGameConfig(editingGameKey, 'image', e.target.value)} 
+                                                      className="flex-1 bg-[#111] border border-gray-700 text-white p-2 rounded text-xs" 
+                                                   />
+                                                   <label className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded cursor-pointer text-xs font-bold uppercase flex items-center">
+                                                      Upload
+                                                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, editingGameKey)} />
+                                                   </label>
+                                                </div>
+                                             </div>
                                           </div>
                                        </div>
 
-                                       <div>
-                                          <label className="block text-gray-500 text-xs uppercase mb-1">Descrição</label>
-                                          <textarea value={game.description} onChange={e => updateGameConfig(gameKey, 'description', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded h-16" />
+                                       <div className="p-6 border-t border-white/10 bg-[#111] flex justify-end gap-3">
+                                          <button onClick={() => setEditingGameKey(null)} className="px-6 py-3 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest">
+                                             Fechar
+                                          </button>
+                                          <button onClick={() => { setEditingGameKey(null); saveConfig(); }} className="px-8 py-3 bg-[var(--accent-color)] hover:brightness-110 text-black font-bold uppercase tracking-widest text-xs rounded shadow-lg">
+                                             Salvar & Fechar
+                                          </button>
                                        </div>
+                                    </>
+                                 )}
+                              </div>
 
-                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div>
-                                             <label className="block text-gray-500 text-xs uppercase mb-1">Texto do Botão</label>
-                                             <input type="text" value={game.buttonText} onChange={e => updateGameConfig(gameKey, 'buttonText', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" />
-                                          </div>
-                                          <div>
-                                             <label className="block text-gray-500 text-xs uppercase mb-1">Imagem URL (Opcional)</label>
-                                             <input type="text" value={game.image} onChange={e => updateGameConfig(gameKey, 'image', e.target.value)} className="w-full bg-black border border-gray-700 text-white p-2 rounded" placeholder="Deixe vazio para usar a arte padrão" />
-                                          </div>
-                                       </div>
-                                    </div>
-                                 );
-                              })}
+                              {/* --- BACKDROP --- */}
+                              {editingGameKey && (
+                                 <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-40" onClick={() => setEditingGameKey(null)}></div>
+                              )}
+
                            </div>
                         )}
 
@@ -642,6 +818,10 @@ const App: React.FC = () => {
                               <div>
                                  <label className="block text-gray-500 text-xs uppercase mb-1">Texto do Link Comercial</label>
                                  <input type="text" value={config.footerLinkText} onChange={e => setConfig({...config, footerLinkText: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded" />
+                              </div>
+                              <div>
+                                 <label className="block text-gray-500 text-xs uppercase mb-1">URL de Redirecionamento (Opcional)</label>
+                                 <input type="text" value={config.footerLinkUrl || ''} onChange={e => setConfig({...config, footerLinkUrl: e.target.value})} className="w-full bg-black border border-gray-700 text-white p-3 rounded" placeholder="Ex: https://sua-empresa.com.br (Deixe vazio para usar a página interna)" />
                               </div>
                            </div>
                         )}
@@ -705,6 +885,9 @@ const App: React.FC = () => {
                   {/* GAME CARDS ITERATION */}
                   {(['game1', 'game2', 'game4', 'game5', 'game6', 'game8'] as const).map((key) => {
                      const game = config.games[key];
+                     // Check Active Status
+                     if (game.active === false) return null;
+
                      // Map key to ViewState
                      const viewState = key as ViewState; 
                      
@@ -776,7 +959,7 @@ const App: React.FC = () => {
                    <div className="flex bg-black p-1 rounded border border-[#333] flex-wrap gap-1">
                       {(['general', 'game1', 'game2', 'game4', 'game5', 'game6', 'game8'] as RankTab[]).map((tab) => (
                         <button key={tab} onClick={() => handleRankingTabChange(tab)} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-all font-tech ${rankingTab === tab ? 'bg-[var(--accent-color)] text-black' : 'text-gray-500 hover:text-white'}`}>
-                          {tab === 'general' ? 'Geral' : tab === 'game1' ? 'Daninhas' : tab === 'game2' ? 'Mapas' : tab === 'game4' ? 'Torque' : tab === 'game5' ? 'Drone' : tab === 'game6' ? 'Monitor' : 'V. Rate'}
+                          {tab === 'general' ? 'Geral' : tab === 'game1' ? 'Pulverização' : tab === 'game2' ? 'Navegação' : tab === 'game4' ? 'Motor/Torque' : tab === 'game5' ? 'Voo Drone' : tab === 'game6' ? 'Telemetria' : 'Taxa Variável'}
                         </button>
                       ))}
                    </div>

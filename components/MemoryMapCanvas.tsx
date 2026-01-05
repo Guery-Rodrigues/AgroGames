@@ -70,6 +70,44 @@ const MemoryMapCanvas: React.FC = () => {
     shake: 0,
   });
 
+  // --- Supabase / UI Logic (Same as other games) ---
+  const fetchHighScores = async () => {
+    setIsLoadingRanking(true);
+    const { data } = await supabase.from('game_scores').select('*').eq('game_id', 'memory_map').order('score', { ascending: false }).limit(10);
+    setHighScores(data || []);
+    setIsLoadingRanking(false);
+  };
+
+  const handleSaveScore = async () => {
+    if (!formData.name.trim()) return;
+    setIsSaving(true);
+    await supabase.from('game_scores').insert([{
+      game_id: 'memory_map', player_name: formData.name.trim().toUpperCase(), company_name: formData.company.trim().toUpperCase(), phone: formData.phone, score: score
+    }]);
+    setIsScoreSaved(true);
+    await fetchHighScores();
+    setIsSaving(false);
+  };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  const handleRetry = () => {
+    setScore(0);
+    setLives(3);
+    setLevel(1);
+    setIsScoreSaved(false);
+    generateLevel(1);
+  };
+
+  // --- Auto-fetch leaderboard on Game Over ---
+  useEffect(() => {
+    if (gameState === 'GAME_OVER') {
+      fetchHighScores();
+    }
+  }, [gameState]);
+
+
   // --- Shape Generation ---
   const generateLevel = useCallback((lvl: number) => {
     const s = stateRef.current;
@@ -411,38 +449,6 @@ const MemoryMapCanvas: React.FC = () => {
     requestRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState, level, generateLevel]);
-
-
-  // --- Supabase / UI Logic (Same as other games) ---
-  const fetchHighScores = async () => {
-    setIsLoadingRanking(true);
-    const { data } = await supabase.from('game_scores').select('*').eq('game_id', 'memory_map').order('score', { ascending: false }).limit(10);
-    setHighScores(data || []);
-    setIsLoadingRanking(false);
-  };
-
-  const handleSaveScore = async () => {
-    if (!formData.name.trim()) return;
-    setIsSaving(true);
-    await supabase.from('game_scores').insert([{
-      game_id: 'memory_map', player_name: formData.name.trim().toUpperCase(), company_name: formData.company.trim().toUpperCase(), phone: formData.phone, score: score
-    }]);
-    setIsScoreSaved(true);
-    await fetchHighScores();
-    setIsSaving(false);
-  };
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  const handleRetry = () => {
-    setScore(0);
-    setLives(3);
-    setLevel(1);
-    setIsScoreSaved(false);
-    generateLevel(1);
-  };
-
 
   return (
     <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center">
