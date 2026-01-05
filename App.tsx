@@ -5,6 +5,7 @@ import TorqueMasterCanvas from './components/TorqueMasterCanvas';
 import DroneRushCanvas from './components/DroneRushCanvas';
 import AgroMonitorPanicCanvas from './components/AgroMonitorPanicCanvas';
 import VariableRateMasterCanvas from './components/VariableRateMasterCanvas';
+import BusinessPage from './components/BusinessPage';
 import { supabase } from './supabaseClient';
 
 // --- TYPES ---
@@ -22,6 +23,12 @@ declare global {
     dataLayer: any[];
     gtag: (...args: any[]) => void;
   }
+  // Allow fetchPriority on img
+  namespace React {
+    interface ImgHTMLAttributes<T> {
+      fetchPriority?: 'high' | 'low' | 'auto';
+    }
+  }
 }
 
 interface LeaderboardItem {
@@ -31,6 +38,48 @@ interface LeaderboardItem {
   unit: string;
   medal?: string;
 }
+
+// --- HELPER COMPONENT: IMAGE WITH LOADER (OPTIMIZED) ---
+const ImageWithLoader = ({ src, alt, className, priority = false }: { src: string, alt: string, className?: string, priority?: boolean }) => {
+  // Initialize loaded state based on if image is already cached to avoid flicker
+  const [loaded, setLoaded] = useState(() => {
+    if (typeof window !== 'undefined') {
+        const img = new Image();
+        img.src = src;
+        return img.complete;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    // If src changes, reset unless cached
+    const img = new Image();
+    img.src = src;
+    if (img.complete) {
+        setLoaded(true);
+    } else {
+        setLoaded(false);
+        img.onload = () => setLoaded(true);
+    }
+  }, [src]);
+
+  return (
+    <div className={`relative overflow-hidden ${className} bg-[#050505]`}>
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full h-full object-cover transition-opacity ease-out ${
+            loaded ? 'opacity-100' : 'opacity-0'
+        } ${priority ? 'duration-300' : 'duration-700'}`}
+        loading={priority ? "eager" : "lazy"}
+        onLoad={() => setLoaded(true)}
+        // @ts-ignore
+        fetchPriority={priority ? "high" : "auto"}
+        decoding={priority ? "sync" : "async"}
+      />
+    </div>
+  );
+};
 
 // --- WHITE LABEL CONFIG TYPE (EXPANDED) ---
 interface GameConfig {
@@ -80,7 +129,7 @@ const DEFAULT_CONFIG: WhiteLabelConfig = {
   bgColor: "#050505",
   navColor: "rgba(5, 5, 5, 0.85)",
   
-  heroImage: "https://images.unsplash.com/photo-1527153857715-3908f2bae5e8?q=80&w=1600",
+  heroImage: "", // Default to black (no image)
   heroTitleLine1: "Domine a",
   heroTitleLine2: "Tecnologia",
   heroTitleLine3: "Do Campo",
@@ -181,6 +230,28 @@ const App: React.FC = () => {
     }
   };
 
+  // --- PRELOADER ---
+  const prefetchImages = (cfg: WhiteLabelConfig) => {
+    // 1. Hero Image (Highest Priority)
+    if (cfg.heroImage) {
+        const img = new Image();
+        img.src = cfg.heroImage;
+        // @ts-ignore
+        img.fetchPriority = 'high';
+    }
+
+    // 2. Game Images (Background Low Priority)
+    // We use setTimeout to defer this slightly so it doesn't contend with the Hero image download
+    setTimeout(() => {
+        Object.values(cfg.games).forEach(game => {
+            if (game.image) {
+                const i = new Image();
+                i.src = game.image;
+            }
+        });
+    }, 100);
+  };
+
   // --- EFFECT: LOAD CONFIG FROM SUPABASE ---
   useEffect(() => {
     const loadConfig = async () => {
@@ -192,8 +263,10 @@ const App: React.FC = () => {
           .single();
 
         if (data && data.config) {
-          // Merge with default to ensure new fields exist if DB is old
-          setConfig(prev => ({ ...DEFAULT_CONFIG, ...data.config }));
+          const finalConfig = { ...DEFAULT_CONFIG, ...data.config };
+          setConfig(finalConfig);
+          // Trigger prefetch as soon as we know the URLs
+          prefetchImages(finalConfig);
         } else if (error && error.code !== 'PGRST116') {
           console.error("Erro ao carregar config:", error);
         }
@@ -388,6 +461,11 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
+  const handleOpenContact = () => {
+    // Simple WhatsApp Redirect for now, can be replaced with a form modal later
+    window.open('https://wa.me/5511999999999?text=Ol%C3%A1%2C%20vi%20o%20Agro%20Arcade%20e%20gostaria%20de%20um%20or%C3%A7amento%20para%20minha%20empresa.', '_blank');
+  };
+
   const scrollToOperations = () => { 
     trackEvent('hero_cta_click', { label: 'Iniciar Operação' });
     document.getElementById('operations')?.scrollIntoView({ behavior: 'smooth' }); 
@@ -402,12 +480,12 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col font-['Montserrat'] overflow-x-hidden bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-300 selection:bg-[var(--accent-color)] selection:text-white">
       
       {/* TACTICAL BACKGROUND GRID (Only on public pages) */}
-      {view !== 'admin' && (
+      {view !== 'admin' && view !== 'business' && (
         <div className="fixed inset-0 z-0 pointer-events-none tactical-grid opacity-30"></div>
       )}
       
-      {/* NAVBAR (Hidden on Admin) */}
-      {view !== 'admin' && (
+      {/* NAVBAR (Hidden on Admin & Business) */}
+      {view !== 'admin' && view !== 'business' && (
         <nav className="fixed top-0 w-full z-50 px-6 py-4 flex justify-between items-center bg-[var(--nav-bg)] backdrop-blur-md border-b border-[var(--card-border)]">
           <div className="flex items-center gap-2 cursor-pointer group" onClick={handleBackToMenu}>
             <div className="w-8 h-8 bg-[var(--accent-color)] skew-x-[-12deg] flex items-center justify-center shadow-[0_0_10px_var(--accent-glow)]">
@@ -470,7 +548,6 @@ const App: React.FC = () => {
       {/* --- VIEW: ADMIN DASHBOARD (FULL SCREEN) --- */}
       {view === 'admin' && (
         <div className="flex h-screen w-full bg-[#050505] overflow-hidden text-white font-mono">
-           
            {/* SIDEBAR (High Level) */}
            <aside className="w-64 bg-[#0a0a0a] border-r border-[#222] flex flex-col">
               <div className="p-6 border-b border-[#222]">
@@ -501,7 +578,6 @@ const App: React.FC = () => {
 
            {/* MAIN CONTENT AREA */}
            <main className="flex-1 flex flex-col overflow-hidden relative">
-              
               {/* PAGE: PROFILE (PLACEHOLDER) */}
               {adminPage === 'profile' && (
                 <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050505]">
@@ -590,7 +666,7 @@ const App: React.FC = () => {
                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'hero')} />
                                     </label>
                                  </div>
-                                 <img src={config.heroImage} className="w-full h-32 object-cover opacity-50 rounded" alt="Preview" />
+                                 <ImageWithLoader src={config.heroImage} className="w-full h-32 rounded opacity-50" alt="Preview" />
                               </div>
 
                               <div className="bg-[#111] p-6 rounded border border-[#333] space-y-4">
@@ -661,7 +737,7 @@ const App: React.FC = () => {
                                           <div className="col-span-6 flex items-center gap-4">
                                              <div className="w-12 h-12 bg-black rounded overflow-hidden border border-white/10 shrink-0">
                                                 {game.image ? (
-                                                   <img src={game.image} alt="" className="w-full h-full object-cover" />
+                                                   <ImageWithLoader src={game.image} alt="" className="w-full h-full" />
                                                 ) : (
                                                    <div className="w-full h-full flex items-center justify-center text-xs text-gray-700 font-mono">IMG</div>
                                                 )}
@@ -764,7 +840,7 @@ const App: React.FC = () => {
                                              <label className="block text-gray-500 text-xs uppercase mb-2">Imagem de Capa</label>
                                              <div className="bg-black border border-gray-700 rounded p-4 flex flex-col gap-4">
                                                 {config.games[editingGameKey].image ? (
-                                                   <img src={config.games[editingGameKey].image} alt="Preview" className="w-full h-40 object-cover rounded border border-white/10" />
+                                                   <ImageWithLoader src={config.games[editingGameKey].image} alt="Preview" className="w-full h-40 rounded border border-white/10" />
                                                 ) : (
                                                    <div className="w-full h-40 flex items-center justify-center bg-[#111] text-gray-600 text-xs border border-dashed border-gray-700 rounded">
                                                       Sem imagem definida
@@ -835,17 +911,38 @@ const App: React.FC = () => {
       )}
 
 
+      {/* VIEW: BUSINESS PAGE */}
+      {view === 'business' && (
+        <BusinessPage 
+          onBack={handleBackToMenu}
+          onContact={handleOpenContact} 
+        />
+      )}
+
+
       {/* VIEW: LANDING PAGE */}
       {view === 'landing' && (
         <main className="flex-grow flex flex-col w-full relative z-10">
           
           {/* HERO SECTION */}
           <section className="relative w-full h-[85vh] flex items-center justify-center overflow-hidden border-b border-[var(--card-border)]">
-            <div className="absolute inset-0 z-0">
-               <img src={config.heroImage} alt="Hero Background" className="w-full h-full object-cover opacity-80" />
-               <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/50 to-transparent"></div>
-               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,var(--bg-color)_100%)]"></div>
-               <div className="absolute inset-0 opacity-10" style={{ background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 2px, 3px 100%' }}></div>
+            <div className="absolute inset-0 z-0 bg-[#050505]">
+               {/* 
+                  Using the Custom Image Loader here.
+                  This ensures the page loads instantly with a black background, 
+                  and the image fades in smoothly only when ready.
+               */}
+               {config.heroImage && (
+                 <ImageWithLoader 
+                   src={config.heroImage} 
+                   alt="Hero Background" 
+                   className="w-full h-full object-cover opacity-80" 
+                   priority={true}
+                 />
+               )}
+               <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/50 to-transparent pointer-events-none"></div>
+               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,var(--bg-color)_100%)] pointer-events-none"></div>
+               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 2px, 3px 100%' }}></div>
             </div>
             
             <div className="relative z-10 max-w-7xl mx-auto px-6 w-full flex flex-col items-center text-center mt-10">
@@ -900,7 +997,7 @@ const App: React.FC = () => {
                         <div key={key} className={`group relative bg-[#121212] border border-[#333] ${borderHover} transition-all duration-300 hover:-translate-y-2 overflow-hidden h-[400px] flex flex-col`}>
                            <div className="relative h-1/2 bg-[#1a1a1a] overflow-hidden border-b border-[#333] transition-colors">
                               {game.image ? (
-                                 <img src={game.image} alt={game.title} className="absolute inset-0 w-full h-full object-cover" />
+                                 <ImageWithLoader src={game.image} alt={game.title} className="absolute inset-0 w-full h-full" />
                               ) : (
                                  // Fallback CSS Art (Simplified for dynamic loop, kept distinct by key)
                                  <div className="absolute inset-0 opacity-50 flex items-center justify-center">
